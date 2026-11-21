@@ -310,9 +310,29 @@ function goPage(i, p) {
   });
   const tab = chapters[i].tab;
   tabsEl.scrollTo({ left: tab.offsetLeft - (tabsEl.clientWidth - tab.offsetWidth) / 2, behavior: 'smooth' });
-  stage.scrollTop = 0;
+  scrollStage(0, false);
   setPos(p ?? chapters[i].start, false);
+  // 챕터 처음으로 들어올 때는 제목·지문부터 보이도록 맨 위에서 시작한다. (첫 대사가 화면 밖이면 대사 위치로)
+  if (p === undefined) {
+    const w = words[curWord];
+    if (!w || w.ch !== i || w.el.offsetTop + w.el.offsetHeight <= stage.clientHeight * 0.8) scrollStage(0, false);
+  }
   store.set('page', i);
+}
+
+// 대본 화면 스크롤. 브라우저의 부드러운 스크롤은 도중에 끊을 수 없어서(페이지를 넘긴 뒤에도 계속 움직임)
+// 직접 움직이고, 새 스크롤이 오면 진행 중이던 것을 취소한다.
+let scrollAnim = 0;
+function scrollStage(top, smooth) {
+  cancelAnimationFrame(scrollAnim);
+  if (!smooth) { stage.scrollTop = top; return; }
+  const from = stage.scrollTop, t0 = performance.now();
+  const step = now => {
+    const k = Math.min(1, (now - t0) / 350);
+    stage.scrollTop = from + (top - from) * (1 - (1 - k) ** 3);
+    if (k < 1) scrollAnim = requestAnimationFrame(step);
+  };
+  scrollAnim = requestAnimationFrame(step);
 }
 
 // 읽은 위치 설정. 현재 페이지(챕터) 범위를 벗어나지 않는다.
@@ -339,8 +359,7 @@ function scrollToCur(smooth = true) {
   const w = words[curWord];
   const el = w && w.ch === page ? w.el : chapters[page].next;   // 다 읽었으면 "다음" 버튼으로
   if (!el) return;
-  const top = Math.max(0, el.offsetTop - stage.clientHeight * 0.35);
-  stage.scrollTo({ top, behavior: smooth ? 'smooth' : 'auto' });
+  scrollStage(Math.max(0, el.offsetTop - stage.clientHeight * 0.35), smooth);
 }
 
 // ── 음성 → 위치 추적 ──────────────────────────────────────
